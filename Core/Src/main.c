@@ -41,6 +41,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
 
@@ -49,6 +50,7 @@ UART_HandleTypeDef huart2;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -56,18 +58,35 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint8_t Rx_data[10];
+uint8_t Rx_data[4];
+
+uint8_t tx_busy = 0;
+
+
+void HAL_UART_RxHalfCpltCallback(UART_HandleTypeDef *huart)
+{
+	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+}
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+	printf("Received: [%s]\r\n", Rx_data);
+//	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
 	HAL_UART_Receive_IT(&huart2, Rx_data, 4); //reinicia el modo de recepcion de interrupcion
 }
-//int _write(int file, char *ptr, int len)
-//{
-//	HAL_UART_Transmit(&huart2, (uint8_t*)ptr, len, 10);
-//  return len;
-//}
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+	tx_busy = 0;
+}
+
+int _write(int file, char *ptr, int len)
+{
+	while(tx_busy != 0) {/*Wait*/}
+	HAL_UART_Transmit_DMA(&huart2, (uint8_t*)ptr, len);
+	tx_busy =1;
+  return len;
+}
 
 /* USER CODE END 0 */
 
@@ -99,24 +118,26 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_UART_Receive_IT(&huart2, Rx_data, 4);
+//  HAL_UART_Receive_DMA(&huart2, Rx_data, 4);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-//  for (uint8_t idx=0; idx <= 0x0F;idx++)
-//	  printf("IDX: 0x%02X\r\n", idx);
-//  while (1)
-//  {
+  for (uint8_t idx=0; idx <= 0x0F;idx++)
+	  printf("IDX: 0x%02X\r\n", idx);
+  while (1)
+  {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 
 
   	 // HAL_Delay(250);
- // }
+  }
   /* USER CODE END 3 */
 }
 
@@ -201,6 +222,22 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel7_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel7_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel7_IRQn);
 
 }
 
